@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>UAT Script Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workbook you scroll. Sheet-tab navigation, dark "header band" hero holding a live replica of the
+   Overview tab, then one section per stage of the pipeline: inputs → validation → derived tests → workbook → how it runs. */
+:root {
+  --bg: #F5F6FB; --surface: #FFFFFF; --surface-2: #EEF0F7; --line: #DEE2EE;
+  --fg: #0F172A; --muted: #586079; --accent: #4F46E5; --accent-soft: #EBEDFF; --on-accent: #FFFFFF;
+  --band: #0F172A; --band-2: #1B2440; --band-fg: #FFFFFF; --band-muted: #A9B4D6; --band-line: #2A3557;
+  --good: #0B7A0B; --good-bg: #DCF5DC; --good-solid: #0B7A0B;
+  --crit: #B42318; --crit-bg: #FDE3E1; --crit-solid: #D03B3B;
+  --warn: #8A5300; --warn-bg: #FFF1C2;
+  --info: #1D4ED8; --info-bg: #E0E9FF;
+  --input: #FFF8DB;
+  --code-bg: #0B1226; --code-fg: #D8DEF3; --code-muted: #7A86AC; --code-key: #A5B4FC; --code-str: #9BE3B4; --code-hl: rgba(208,59,59,.22); --code-hl-line: #FF8A80;
+  --display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0A0F1E; --surface: #111831; --surface-2: #161F3D; --line: #26304F;
+  --fg: #E8EBF7; --muted: #9AA3C0; --accent: #8E88FF; --accent-soft: #1F2252; --on-accent: #0A0F1E;
+  --band: #060A17; --band-2: #111831; --band-fg: #FFFFFF; --band-muted: #A9B4D6; --band-line: #222C4C;
+  --good: #5BD98A; --good-bg: #10301D; --good-solid: #0E8A3A;
+  --crit: #FF8F86; --crit-bg: #3A1517; --crit-solid: #C73636;
+  --warn: #F5C451; --warn-bg: #3A2C08;
+  --info: #93B4FF; --info-bg: #15224A;
+  --input: #2E2A12;
+  --code-bg: #070C1A; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0A0F1E; --surface: #111831; --surface-2: #161F3D; --line: #26304F;
+  --fg: #E8EBF7; --muted: #9AA3C0; --accent: #8E88FF; --accent-soft: #1F2252; --on-accent: #0A0F1E;
+  --band: #060A17; --band-2: #111831; --band-fg: #FFFFFF; --band-muted: #A9B4D6; --band-line: #222C4C;
+  --good: #5BD98A; --good-bg: #10301D; --good-solid: #0E8A3A;
+  --crit: #FF8F86; --crit-bg: #3A1517; --crit-solid: #C73636;
+  --warn: #F5C451; --warn-bg: #3A2C08;
+  --info: #93B4FF; --info-bg: #15224A;
+  --input: #2E2A12;
+  --code-bg: #070C1A; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); font-stretch: 112%; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.25rem); font-weight: 800; line-height: 1.1; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 500; }
+.lede { color: var(--muted); max-width: 62ch; }
+.mono { font-family: var(--mono); }
+
+/* ---------- top bar + sheet tabs ---------- */
+.top { background: var(--band); color: var(--band-fg); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 14px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-stretch: 112%; font-size: 1.05rem; }
+.brand-mark { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 14px; }
+.top .meta { font-size: .85rem; color: var(--band-muted); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.top .meta a { color: var(--band-fg); text-decoration: none; border: 1px solid var(--band-line); padding: 6px 12px; border-radius: 999px; }
+.top .meta a:hover { border-color: var(--band-muted); }
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band); border-bottom: 3px solid var(--accent); }
+.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tabs a { font-family: var(--body); font-size: .85rem; color: var(--band-muted); text-decoration: none; padding: 9px 14px 8px; border-radius: 8px 8px 0 0; white-space: nowrap; background: var(--band-2); }
+.tabs a:hover, .tabs a.on { color: #fff; background: var(--accent); }
+
+/* ---------- hero ---------- */
+.hero { background: var(--band); color: var(--band-fg); padding-block: 48px 56px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 48px; align-items: center; }
+.hero .eyebrow { color: #A5B4FC; }
+.hero h1 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); font-weight: 900; line-height: 1.02; margin-top: 14px; }
+.hero h1 em { font-style: normal; color: #A5B4FC; }
+.hero p.lede { color: var(--band-muted); margin-top: 18px; font-size: 1.05rem; }
+.hero .facts { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 28px; margin-top: 26px; }
+.hero .facts div { font-size: .85rem; color: var(--band-muted); }
+.hero .facts b { display: block; font-family: var(--display); font-stretch: 112%; font-size: 1.6rem; color: #fff; line-height: 1.1; }
+
+/* Overview replica */
+.replica { background: #FFFFFF; color: #0F172A; border-radius: 12px; overflow: hidden; box-shadow: 0 30px 60px -20px rgba(0,0,0,.55); font-family: Arial, var(--body); }
+.rep-head { background: #0F172A; padding: 14px 18px 12px; border-bottom: 4px solid #4F46E5; }
+.rep-head small { display: block; font-size: 10px; font-weight: 700; color: #A5B4FC; letter-spacing: .04em; }
+.rep-head strong { display: block; font-size: 22px; color: #fff; margin-top: 2px; }
+.rep-head span { font-size: 11px; color: #CBD5E1; }
+.rep-body { padding: 14px 16px 16px; display: grid; gap: 12px; }
+.rep-banner { color: #fff; font-weight: 700; font-size: 14px; text-align: center; padding: 13px 10px; transition: background-color .35s ease; }
+.rep-banner.crit { background: #D03B3B; } .rep-banner.ready { background: #4F46E5; } .rep-banner.good { background: #0B7A0B; }
+.rep-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; background: #F8FAFC; }
+.rep-tile { border-top: 4px solid #4F46E5; padding: 8px 10px 9px; }
+.rep-tile:first-child { border-top-color: #1E293B; }
+.rep-tile small { display: block; font-size: 9px; font-weight: 700; color: #64748B; letter-spacing: .03em; }
+.rep-tile b { display: block; font-size: 28px; line-height: 1.15; }
+.rep-tile span { font-size: 9.5px; color: #64748B; }
+.rep-tile b.bad { color: #B42318; } .rep-tile b.ok { color: #0B7A0B; }
+.rep-prog small { display: block; font-size: 10px; font-weight: 700; color: #4F46E5; border-bottom: 2px solid #4F46E5; padding-bottom: 2px; margin-bottom: 7px; }
+.rep-bar { display: flex; align-items: center; gap: 10px; }
+.rep-track { flex: 1; height: 12px; background: #E6E8FF; border-radius: 2px; overflow: hidden; }
+.rep-fill { height: 100%; background: #4F46E5; width: 0; transition: width .5s ease; }
+.rep-bar b { font-size: 13px; min-width: 64px; text-align: right; }
+.rep-legend { font-size: 10px; color: #64748B; margin-top: 4px; }
+.states { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+.states button, .seg button { font: 500 .82rem var(--body); border: 1px solid var(--band-line); background: transparent; color: var(--band-muted); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.states button[aria-pressed="true"] { background: #fff; color: #0F172A; border-color: #fff; }
+.states button:hover { color: #fff; border-color: var(--band-muted); }
+.states button[aria-pressed="true"]:hover { color: #0F172A; }
+.replica-cap { font-size: .8rem; color: var(--band-muted); margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section.block { padding-block: 72px 8px; scroll-margin-top: 48px; }
+.head { display: grid; gap: 12px; margin-bottom: 28px; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: 999px; flex-wrap: wrap; }
+.seg button { border: 0; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+
+/* inputs */
+.files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.file { background: var(--code-bg); border-radius: var(--radius); overflow: hidden; min-width: 0; }
+.file-head { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-family: var(--mono); font-size: .78rem; color: var(--code-muted); border-bottom: 1px solid #1A2340; }
+.file-head b { color: var(--code-fg); font-weight: 500; }
+pre.code { margin: 0; padding: 12px 0; font-family: var(--mono); font-size: .78rem; line-height: 1.7; color: var(--code-fg); overflow-x: auto; }
+pre.code .ln { display: flex; padding-inline: 14px; min-width: max-content; }
+pre.code .ln.hl { background: var(--code-hl); box-shadow: inset 3px 0 0 var(--code-hl-line); }
+pre.code .tag { margin-left: auto; padding-left: 18px; color: var(--code-hl-line); font-weight: 500; }
+pre.code .k { color: var(--code-key); } pre.code .s { color: var(--code-str); } pre.code .c { color: var(--code-muted); }
+.files-note { margin-top: 14px; font-size: .9rem; color: var(--muted); }
+
+/* validation */
+.counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 .8rem var(--body); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.FAIL { color: var(--crit); background: var(--crit-bg); } .pill.WARN { color: var(--warn); background: var(--warn-bg); }
+.pill.INFO { color: var(--info); background: var(--info-bg); } .pill.PASS { color: var(--good); background: var(--good-bg); }
+.checks { display: grid; gap: 10px; }
+.check { display: grid; grid-template-columns: 64px 92px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.check.FAIL { border-left: 5px solid var(--crit-solid); }
+.check.WARN { border-left: 5px solid var(--warn); } .check.INFO { border-left: 5px solid var(--info); } .check.PASS { border-left: 5px solid var(--good); }
+.check .id { font-family: var(--mono); font-size: .85rem; font-weight: 500; padding-top: 2px; }
+.check .cat { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.check .lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.check .val { font-family: var(--mono); font-size: .82rem; overflow-wrap: anywhere; }
+.check .impact { grid-column: 3 / -1; font-size: .92rem; padding-top: 10px; border-top: 1px dashed var(--line); }
+.check .impact b { font-weight: 600; }
+.check .fix { grid-column: 3 / -1; font-size: .85rem; color: var(--muted); }
+.more { margin-top: 12px; font: 500 .88rem var(--body); background: none; border: 0; color: var(--accent); cursor: pointer; padding: 6px 0; }
+.empty-ok { background: var(--good-bg); color: var(--good); border-radius: var(--radius); padding: 14px 16px; font-weight: 600; }
+
+/* derived tests */
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.rule { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; align-content: start; }
+.rule .if { font-size: .78rem; color: var(--muted); }
+.rule .if code { font-family: var(--mono); color: var(--fg); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.rule .then { font-weight: 600; }
+.cases { margin-top: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.cases-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.case { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+.case:last-child { border-bottom: 0; }
+.case:nth-child(even) { background: var(--bg); }
+.case .tc { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+.case .t { min-width: 0; }
+.chip { font: 600 .72rem var(--body); padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 1px; }
+.chip.core { background: var(--accent-soft); color: var(--accent); }
+.dep { font: 500 .76rem var(--mono); color: var(--warn); background: var(--warn-bg); padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+
+/* workbook tabs */
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.sheet-tabs { display: flex; gap: 2px; padding: 8px 8px 0; background: var(--surface-2); overflow-x: auto; border-bottom: 3px solid var(--accent); }
+.sheet-tabs button { font: 500 .82rem var(--body); border: 0; background: transparent; color: var(--muted); padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; white-space: nowrap; }
+.sheet-tabs button[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+.sheet-body { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; padding: 22px; align-items: start; }
+.sheet-body h3 { margin-bottom: 8px; }
+.sheet-body p { color: var(--muted); font-size: .95rem; }
+.sheet-body ul { margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: .9rem; display: grid; gap: 4px; }
+.shot { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; max-width: 100%; }
+.shot img { display: block; width: 100%; height: auto; }
+
+/* pipeline */
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; overflow-x: auto; }
+.diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.choice { border-top: 3px solid var(--accent); padding-top: 12px; }
+.choice p { color: var(--muted); font-size: .92rem; margin-top: 6px; }
+
+footer { margin-top: 80px; background: var(--band); color: var(--band-muted); font-size: .88rem; }
+footer .wrap { padding-block: 28px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+footer b { color: #fff; font-weight: 600; }
+footer a { color: #fff; }
+
+@media (max-width: 900px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .files, .rules, .choices { grid-template-columns: minmax(0, 1fr); }
+  .sheet-body { grid-template-columns: minmax(0, 1fr); }
+  .check { grid-template-columns: 56px minmax(0, 1fr); }
+  .check .side { grid-column: 2; }
+  .check .impact, .check .fix { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .rep-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .case { grid-template-columns: 52px minmax(0, 1fr); }
+  .case .dep { grid-column: 2; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span> UAT Script Generator</div>
+    <div class="meta"><span>A Claude skill by Casey Mullan</span><a href="https://github.com/caseymullan/claude-skills/tree/main/uat-script-generator">Source on GitHub</a></div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections">
+  <div class="wrap">
+    <a href="#overview" class="on">Overview</a>
+    <a href="#inputs">Inputs</a>
+    <a href="#validation">Pre-UAT Validation</a>
+    <a href="#tests">Test Cases</a>
+    <a href="#workbook">Workbook</a>
+    <a href="#how">How it runs</a>
+  </div>
+</nav>
+
+<section class="hero" id="overview">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">For HRIS &amp; LMS integration teams</div>
+      <h1>Catch the build-vs-spec mismatch <em>before the customer does.</em></h1>
+      <p class="lede">The skill reads an integration workflow export and the requirements spec the customer signed. It checks one against the other, then generates the UAT workbook the customer's HRIS team tests from, with test cases derived from what the integration actually does.</p>
+      <div class="facts">
+        <div><b>21</b>checks on one user sync</div>
+        <div><b>5</b>defects caught before UAT</div>
+        <div><b>25</b>test cases generated</div>
+      </div>
+    </div>
+    <div>
+      <div class="replica" aria-live="polite">
+        <div class="rep-head">
+          <small>UAT WORKBOOK · HRIS USER SYNC</small>
+          <strong>Halvorsen Freight</strong>
+          <span>Workday → Learning Platform · UAT</span>
+        </div>
+        <div class="rep-body">
+          <div class="rep-banner crit" id="rep-banner">✗ NOT READY FOR CUSTOMER UAT · 3 blocking checks</div>
+          <div class="rep-tiles">
+            <div class="rep-tile"><small>BLOCKING CHECKS</small><b id="t-block" class="bad">3</b><span>must be 0 before UAT starts</span></div>
+            <div class="rep-tile"><small>TEST CASES</small><b>16</b><span>4 core · 12 edge</span></div>
+            <div class="rep-tile"><small>PASSED</small><b id="t-pass">0</b><span id="t-pass-cap">0 failed · 0 blocked</span></div>
+            <div class="rep-tile"><small>OPEN ISSUES</small><b id="t-iss">0</b><span>on the Issue Log</span></div>
+          </div>
+          <div class="rep-prog">
+            <small>TEST PROGRESS</small>
+            <div class="rep-bar"><div class="rep-track"><div class="rep-fill" id="rep-fill"></div></div><b id="rep-pct">0% run</b></div>
+            <div class="rep-legend" id="rep-legend">✓ 0 passed · ✗ 0 failed · ⚠ 0 blocked · ○ 16 not run</div>
+          </div>
+        </div>
+      </div>
+      <div class="states" role="group" aria-label="Workbook state">
+        <button type="button" data-state="before" aria-pressed="true">As built</button>
+        <button type="button" data-state="after" aria-pressed="false">After fixes</button>
+        <button type="button" data-state="testing" aria-pressed="false">Mid-UAT</button>
+        <button type="button" data-state="signed" aria-pressed="false">Signed off</button>
+      </div>
+      <p class="replica-cap">This is the workbook's Overview tab. Every number on it is a spreadsheet formula, so it updates as testers fill in results.</p>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+<section class="block" id="inputs">
+  <div class="head">
+    <div class="eyebrow">Inputs</div>
+    <h2>Two files: what was built, and what was agreed</h2>
+    <p class="lede">The workflow export comes from the iPaaS. The requirements spec is the configuration the customer signed during discovery. Each highlighted line is one the generator flags.</p>
+  </div>
+  <div class="files">
+    <div class="file">
+      <div class="file-head"><b>workday_user_sync.workflow.json</b><span>as built</span></div>
+<pre class="code"><span class="ln"><span class="c">// trigger</span></span><span class="ln hl"><span class="k">"schedule"</span>: { <span class="k">"interval"</span>: <span class="s">"15m"</span> }<span class="tag">⚠ V-16</span></span><span class="ln"><span class="c">// boolean-condition</span></span><span class="ln hl"><span class="k">"Employee_Class"</span> not_in [<span class="s">"CONTRACTOR"</span>, <span class="s">"INTERN"</span>]<span class="tag">✗ V-15</span></span><span class="ln"><span class="c">// data-mapper</span></span><span class="ln"><span class="s">"Employee_ID"</span>          → <span class="k">external_id</span></span><span class="ln"><span class="s">"Work_Email"</span>           → <span class="k">email</span></span><span class="ln"><span class="s">"Preferred_First_Name"</span> → <span class="k">first_name</span></span><span class="ln hl"><span class="s">"Original_Hire_Date"</span>   → <span class="k">hire_date</span><span class="tag">✗ V-07</span></span><span class="ln"><span class="s">"Worker_Status"</span>        → <span class="k">status</span></span><span class="ln"><span class="s">"Department"</span>           → <span class="k">department</span></span><span class="ln hl"><span class="c">// (no manager mapping)</span><span class="tag">✗ V-12</span></span><span class="ln hl"><span class="s">"Cost_Center"</span>          → <span class="k">cost_center</span><span class="tag">ℹ V-14</span></span></pre>
+    </div>
+    <div class="file">
+      <div class="file-head"><b>workday_user_sync.requirements.json</b><span>signed 2026-09-29</span></div>
+<pre class="code"><span class="ln"><span class="k">"schedule"</span>: <span class="s">"daily"</span></span><span class="ln"><span class="k">"timezone"</span>: <span class="s">"America/Chicago"</span></span><span class="ln"><span class="k">"filters"</span>: <span class="s">"Employee_Class"</span> not_in</span><span class="ln">   [<span class="s">"CONTRACTOR"</span>, <span class="s">"INTERN"</span>, <span class="s">"SEASONAL"</span>]</span><span class="ln"><span class="k">"required_mappings"</span>:</span><span class="ln">  <span class="s">"Employee_ID"</span>   → <span class="k">external_id</span></span><span class="ln">  <span class="s">"Hire_Date"</span>     → <span class="k">hire_date</span></span><span class="ln">    <span class="c">"Most recent hire date so rehires</span></span><span class="ln">    <span class="c"> get onboarding content"</span></span><span class="ln">  <span class="s">"Manager_Email"</span> → <span class="k">manager_email</span></span><span class="ln">    <span class="c">"Drives manager nudges and reporting"</span></span><span class="ln"><span class="k">"signed_off"</span>: Dana Whitfield, Marcus Oyelaran</span></pre>
+    </div>
+  </div>
+  <p class="files-note">Excerpts. Halvorsen Freight and everyone named on this page are fictional; the defects are modeled on ones that come up in real Workday and SuccessFactors projects.</p>
+</section>
+
+<section class="block" id="validation">
+  <div class="head">
+    <div class="eyebrow">Pre-UAT Validation</div>
+    <h2>Every signed requirement, checked against the build</h2>
+    <p class="lede">Problems sort to the top. Each one comes with the fix and a plain-language note on what the customer would hit if it shipped. Check IDs stay the same between runs, so V-07 means the same thing before and after a fix.</p>
+  </div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Integration" id="seg-int">
+      <button type="button" data-int="user_sync" aria-pressed="true">User sync · Workday → Learning Platform</button>
+      <button type="button" data-int="completions" aria-pressed="false">Completions · Learning Platform → SuccessFactors</button>
+    </div>
+    <div class="seg" role="group" aria-label="Build state" id="seg-state">
+      <button type="button" data-st="before" aria-pressed="true">As built</button>
+      <button type="button" data-st="after" aria-pressed="false">After fixes</button>
+    </div>
+  </div>
+  <div class="counts" id="counts" style="margin-bottom:14px"></div>
+  <div class="checks" id="checks"></div>
+  <button type="button" class="more" id="more"></button>
+</section>
+
+<section class="block" id="tests">
+  <div class="head">
+    <div class="eyebrow">Test Cases</div>
+    <h2>Derived from the workflow, not copied from the last customer</h2>
+    <p class="lede">The generator reads what the integration does and writes the cases that integration needs. A case that a known defect would break is marked before anyone runs it, so the customer never spends an afternoon proving a bug the team already knew about.</p>
+  </div>
+  <div class="rules">
+    <div class="rule"><div class="if">If the workflow maps <code>hire_date</code></div><div class="then">Rehire reactivates the original user, with the new hire date</div></div>
+    <div class="rule"><div class="if">If there's a population filter</div><div class="then">One test per excluded class: contractors, seasonal workers</div></div>
+    <div class="rule"><div class="if">If it maps worker <code>status</code></div><div class="then">Termination deactivates; leave of absence stays active</div></div>
+    <div class="rule"><div class="if">If it matches on <code>external_id</code></div><div class="then">An email change updates the user and never duplicates them</div></div>
+    <div class="rule"><div class="if">If it converts timestamps</div><div class="then">An 11:41 PM completion keeps its calendar date</div></div>
+    <div class="rule"><div class="if">If the spec names a peak volume</div><div class="then">A 2,500-record batch posts with rate-limit retries</div></div>
+  </div>
+  <div class="cases">
+    <div class="cases-head"><h3 id="cases-title">User sync · 16 test cases</h3><span class="counts" id="cases-counts"></span></div>
+    <div id="cases"></div>
+  </div>
+</section>
+
+<section class="block" id="workbook">
+  <div class="head">
+    <div class="eyebrow">The workbook</div>
+    <h2>Eight tabs the customer's team can work from</h2>
+    <p class="lede">Yellow cells are for the customer to fill in. Status columns are dropdowns, every state carries an icon and a label, and sign-off criteria are formulas nobody can type over.</p>
+  </div>
+  <div class="sheet">
+    <div class="sheet-tabs" role="tablist" id="sheet-tabs"></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</section>
+
+<section class="block" id="how">
+  <div class="head">
+    <div class="eyebrow">How it runs</div>
+    <h2>A deterministic script, with Claude on either side of it</h2>
+    <p class="lede">The script produces the same workbook every time from the same input. Claude handles the parts that need judgement: explaining each failure to a person, making the fix on a copy, and running it again.</p>
+  </div>
+  <div class="diagram">
+    <svg viewBox="0 0 1040 300" role="img" aria-labelledby="dg-t">
+      <title id="dg-t">Pipeline: the workflow export and signed spec go into generate_uat.py, which parses, validates and derives tests, producing the UAT workbook and a JSON summary. Claude briefs the user from the summary, applies fixes to a copy of the workflow, and re-runs.</title>
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <g font-family="IBM Plex Mono, monospace" font-size="13">
+        <rect x="10" y="40" width="200" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="110" y="64" text-anchor="middle" fill="var(--fg)">workflow.json</text>
+        <text x="110" y="83" text-anchor="middle" fill="var(--muted)" font-size="11">what was built</text>
+        <rect x="10" y="124" width="200" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="110" y="148" text-anchor="middle" fill="var(--fg)">requirements.json</text>
+        <text x="110" y="167" text-anchor="middle" fill="var(--muted)" font-size="11">what was signed</text>
+        <path d="M210 68 C 250 68, 250 110, 290 110" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#ar)"/>
+        <path d="M210 152 C 250 152, 250 110, 290 110" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#ar)"/>
+        <rect x="292" y="40" width="250" height="140" rx="10" fill="var(--accent)"/>
+        <text x="417" y="70" text-anchor="middle" fill="var(--on-accent)" font-weight="500" font-size="14">generate_uat.py</text>
+        <text x="317" y="102" fill="var(--on-accent)" font-size="12">1  parse the export</text>
+        <text x="317" y="126" fill="var(--on-accent)" font-size="12">2  validate against the spec</text>
+        <text x="317" y="150" fill="var(--on-accent)" font-size="12">3  derive test cases</text>
+        <path d="M542 85 L 600 70" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#ar)"/>
+        <path d="M542 140 L 600 155" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#ar)"/>
+        <rect x="602" y="40" width="190" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="697" y="64" text-anchor="middle" fill="var(--fg)">UAT workbook</text>
+        <text x="697" y="83" text-anchor="middle" fill="var(--muted)" font-size="11">8 tabs · .xlsx</text>
+        <rect x="602" y="128" width="190" height="56" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="697" y="152" text-anchor="middle" fill="var(--fg)">JSON summary</text>
+        <text x="697" y="171" text-anchor="middle" fill="var(--muted)" font-size="11">verdict · checks · counts</text>
+        <path d="M792 156 L 842 156" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#ar)"/>
+        <rect x="844" y="104" width="186" height="104" rx="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+        <text x="937" y="130" text-anchor="middle" fill="var(--accent)" font-weight="500" font-size="14">Claude</text>
+        <text x="860" y="155" fill="var(--fg)" font-size="11.5">briefs the verdict</text>
+        <text x="860" y="175" fill="var(--fg)" font-size="11.5">fixes FAILs on a copy</text>
+        <text x="860" y="195" fill="var(--fg)" font-size="11.5">re-runs</text>
+        <path d="M937 208 C 937 270, 417 270, 417 184" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ar)"/>
+        <text x="677" y="262" text-anchor="middle" fill="var(--accent)" font-size="12">fixed workflow → same check IDs, FAIL count to 0</text>
+      </g>
+    </svg>
+  </div>
+  <div class="choices">
+    <div class="choice"><h3>The spec is the source of truth</h3><p>A fix changes the workflow to match what the customer signed. The generator never edits the spec to make a check pass.</p></div>
+    <div class="choice"><h3>Same input, same workbook</h3><p>A customer-facing document shouldn't change between two runs. Test cases come from rules, so they can be reviewed and audited.</p></div>
+    <div class="choice"><h3>Built for more than one iPaaS</h3><p>The input is a small documented shape. Supporting a real Tray, Workato or Boomi export means writing an adapter; the checks stay the same.</p></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <b>Casey Mullan</b>, solutions engineer for HRIS and learning integrations.</span>
+    <span>All customer data on this page is fictional.</span>
+  </div>
+</footer>
+
+<script>
+const DATA = {"user_sync": {"before": {"checks": [{"id": "V-07", "category": "Field mapping", "requirement": "hire_date ← Hire_Date (Most recent hire date so rehires get onboarding content)", "as_built": "hire_date ← Original_Hire_Date", "result": "FAIL", "severity": "High", "action": "Change source from Original_Hire_Date to Hire_Date."}, {"id": "V-12", "category": "Field mapping", "requirement": "manager_email ← Manager_Email (Drives manager nudges and team reporting)", "as_built": "Not mapped", "result": "FAIL", "severity": "High", "action": "Add mapping Manager_Email → manager_email in the data mapper."}, {"id": "V-15", "category": "Population filter", "requirement": "Employee_Class not_in CONTRACTOR, INTERN, SEASONAL", "as_built": "Employee_Class not_in CONTRACTOR, INTERN", "result": "FAIL", "severity": "High", "action": "Missing value(s): SEASONAL. Update the filter to match the signed spec."}, {"id": "V-16", "category": "Schedule", "requirement": "Runs daily", "as_built": "Runs every 15 minutes", "result": "WARN", "severity": "Medium", "action": "Faster cadence is fine for UAT. Revert to daily before production cutover."}, {"id": "V-14", "category": "Field mapping", "requirement": "Not in signed spec", "as_built": "cost_center ← Cost_Center", "result": "INFO", "severity": "Low", "action": "Confirm with the customer that this field should sync, or remove it."}, {"id": "V-01", "category": "Scope", "requirement": "Integration type: hris_user_sync", "as_built": "Workflow tagged: hris_user_sync", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-02", "category": "Identity", "requirement": "Records match on Employee_ID → external_id", "as_built": "Match on external_id; external_id ← Employee_ID", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-03", "category": "Field mapping", "requirement": "external_id ← Employee_ID", "as_built": "external_id ← Employee_ID", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-04", "category": "Field mapping", "requirement": "email ← Work_Email", "as_built": "email ← Work_Email", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-05", "category": "Field mapping", "requirement": "first_name ← Preferred_First_Name", "as_built": "first_name ← Preferred_First_Name", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-06", "category": "Field mapping", "requirement": "last_name ← Last_Name", "as_built": "last_name ← Last_Name", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-08", "category": "Field mapping", "requirement": "status ← Worker_Status", "as_built": "status ← Worker_Status", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-09", "category": "Field mapping", "requirement": "department ← Department", "as_built": "department ← Department", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-10", "category": "Field mapping", "requirement": "job_title ← Job_Title", "as_built": "job_title ← Job_Title", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-11", "category": "Field mapping", "requirement": "location ← Work_Location", "as_built": "location ← Work_Location", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-13", "category": "Field mapping", "requirement": "employee_class ← Employee_Class", "as_built": "employee_class ← Employee_Class", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-17", "category": "Lifecycle", "requirement": "Status 'Active' → active", "as_built": "Status 'Active' → active", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-18", "category": "Lifecycle", "requirement": "Status 'On Leave' → active", "as_built": "Status 'On Leave' → active", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-19", "category": "Lifecycle", "requirement": "Status 'Terminated' → inactive", "as_built": "Status 'Terminated' → inactive", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-20", "category": "Lifecycle", "requirement": "Worker missing from feed → deactivate", "as_built": "Worker missing from feed → deactivate", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-21", "category": "Error handling", "requirement": "Retry on HTTP 429, 500, 503", "as_built": "Retries on 429, 500, 503", "result": "PASS", "severity": "—", "action": "—"}], "cases": [{"title": "New hire is created", "category": "Core", "deps": []}, {"title": "All mapped fields populate correctly", "category": "Core", "deps": ["V-07", "V-12"]}, {"title": "Attribute update propagates", "category": "Core", "deps": []}, {"title": "Termination deactivates the user", "category": "Edge", "deps": []}, {"title": "Leave of absence keeps the user active", "category": "Edge", "deps": []}, {"title": "Rehire reactivates the original user", "category": "Edge", "deps": ["V-07"]}, {"title": "Email change updates, does not duplicate", "category": "Edge", "deps": []}, {"title": "Name change propagates", "category": "Edge", "deps": []}, {"title": "Excluded class (contractor) is not created", "category": "Edge", "deps": []}, {"title": "Excluded class (seasonal) is not created", "category": "Edge", "deps": ["V-15"]}, {"title": "Duplicate email across two workers", "category": "Edge", "deps": []}, {"title": "Special characters are preserved", "category": "Edge", "deps": []}, {"title": "Record missing a required field is rejected cleanly", "category": "Edge", "deps": []}, {"title": "Manager change updates reporting line", "category": "Edge", "deps": ["V-12"]}, {"title": "Worker who drops off the feed", "category": "Edge", "deps": []}, {"title": "Full-population reconciliation", "category": "Core", "deps": []}]}, "after": {"checks": [{"id": "V-16", "category": "Schedule", "requirement": "Runs daily", "as_built": "Runs every 15 minutes", "result": "WARN", "severity": "Medium", "action": "Faster cadence is fine for UAT. Revert to daily before production cutover."}, {"id": "V-14", "category": "Field mapping", "requirement": "Not in signed spec", "as_built": "cost_center ← Cost_Center", "result": "INFO", "severity": "Low", "action": "Confirm with the customer that this field should sync, or remove it."}, {"id": "V-01", "category": "Scope", "requirement": "Integration type: hris_user_sync", "as_built": "Workflow tagged: hris_user_sync", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-02", "category": "Identity", "requirement": "Records match on Employee_ID → external_id", "as_built": "Match on external_id; external_id ← Employee_ID", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-03", "category": "Field mapping", "requirement": "external_id ← Employee_ID", "as_built": "external_id ← Employee_ID", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-04", "category": "Field mapping", "requirement": "email ← Work_Email", "as_built": "email ← Work_Email", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-05", "category": "Field mapping", "requirement": "first_name ← Preferred_First_Name", "as_built": "first_name ← Preferred_First_Name", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-06", "category": "Field mapping", "requirement": "last_name ← Last_Name", "as_built": "last_name ← Last_Name", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-07", "category": "Field mapping", "requirement": "hire_date ← Hire_Date", "as_built": "hire_date ← Hire_Date", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-08", "category": "Field mapping", "requirement": "status ← Worker_Status", "as_built": "status ← Worker_Status", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-09", "category": "Field mapping", "requirement": "department ← Department", "as_built": "department ← Department", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-10", "category": "Field mapping", "requirement": "job_title ← Job_Title", "as_built": "job_title ← Job_Title", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-11", "category": "Field mapping", "requirement": "location ← Work_Location", "as_built": "location ← Work_Location", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-12", "category": "Field mapping", "requirement": "manager_email ← Manager_Email", "as_built": "manager_email ← Manager_Email", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-13", "category": "Field mapping", "requirement": "employee_class ← Employee_Class", "as_built": "employee_class ← Employee_Class", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-15", "category": "Population filter", "requirement": "Employee_Class not_in CONTRACTOR, INTERN, SEASONAL", "as_built": "Employee_Class not_in CONTRACTOR, INTERN, SEASONAL", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-17", "category": "Lifecycle", "requirement": "Status 'Active' → active", "as_built": "Status 'Active' → active", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-18", "category": "Lifecycle", "requirement": "Status 'On Leave' → active", "as_built": "Status 'On Leave' → active", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-19", "category": "Lifecycle", "requirement": "Status 'Terminated' → inactive", "as_built": "Status 'Terminated' → inactive", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-20", "category": "Lifecycle", "requirement": "Worker missing from feed → deactivate", "as_built": "Worker missing from feed → deactivate", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-21", "category": "Error handling", "requirement": "Retry on HTTP 429, 500, 503", "as_built": "Retries on 429, 500, 503", "result": "PASS", "severity": "—", "action": "—"}], "cases": [{"title": "New hire is created", "category": "Core", "deps": []}, {"title": "All mapped fields populate correctly", "category": "Core", "deps": []}, {"title": "Attribute update propagates", "category": "Core", "deps": []}, {"title": "Termination deactivates the user", "category": "Edge", "deps": []}, {"title": "Leave of absence keeps the user active", "category": "Edge", "deps": []}, {"title": "Rehire reactivates the original user", "category": "Edge", "deps": []}, {"title": "Email change updates, does not duplicate", "category": "Edge", "deps": []}, {"title": "Name change propagates", "category": "Edge", "deps": []}, {"title": "Excluded class (contractor) is not created", "category": "Edge", "deps": []}, {"title": "Excluded class (seasonal) is not created", "category": "Edge", "deps": []}, {"title": "Duplicate email across two workers", "category": "Edge", "deps": []}, {"title": "Special characters are preserved", "category": "Edge", "deps": []}, {"title": "Record missing a required field is rejected cleanly", "category": "Edge", "deps": []}, {"title": "Manager change updates reporting line", "category": "Edge", "deps": []}, {"title": "Worker who drops off the feed", "category": "Edge", "deps": []}, {"title": "Full-population reconciliation", "category": "Core", "deps": []}]}}, "completions": {"before": {"checks": [{"id": "V-11", "category": "Dates & time zones", "requirement": "COMPLETION_DATE converted in America/Chicago", "as_built": "Converted in UTC", "result": "FAIL", "severity": "High", "action": "Set timezone to America/Chicago. Late-evening completions will otherwise land on the next calendar day in the customer's system."}, {"id": "V-12", "category": "Error handling", "requirement": "Retry on HTTP 429, 500, 503", "as_built": "Retries on 500, 502, 503", "result": "FAIL", "severity": "High", "action": "Add retry on 429. 429 = API rate limit; large first loads will drop records without it."}, {"id": "V-01", "category": "Scope", "requirement": "Integration type: lms_completions", "as_built": "Workflow tagged: lms_completions", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-02", "category": "Identity", "requirement": "Records match on learner.external_id → STUDENT_ID", "as_built": "Match on STUDENT_ID; STUDENT_ID ← learner.external_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-03", "category": "Field mapping", "requirement": "STUDENT_ID ← learner.external_id", "as_built": "STUDENT_ID ← learner.external_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-04", "category": "Field mapping", "requirement": "ITEM_ID ← course.external_course_id", "as_built": "ITEM_ID ← course.external_course_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-05", "category": "Field mapping", "requirement": "ITEM_TYPE ← course.course_type", "as_built": "ITEM_TYPE ← course.course_type", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-06", "category": "Field mapping", "requirement": "COMPLETION_DATE ← completed_at", "as_built": "COMPLETION_DATE ← completed_at", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-07", "category": "Field mapping", "requirement": "COMPLETION_STATUS ← status", "as_built": "COMPLETION_STATUS ← status", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-08", "category": "Field mapping", "requirement": "SCORE ← score", "as_built": "SCORE ← score", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-09", "category": "Population filter", "requirement": "course_type in OLT", "as_built": "course_type in OLT", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-10", "category": "Schedule", "requirement": "Runs daily", "as_built": "Runs daily", "result": "PASS", "severity": "—", "action": "—"}], "cases": [{"title": "Completion posts to learning history", "category": "Core", "deps": []}, {"title": "All mapped fields land correctly", "category": "Core", "deps": ["V-11"]}, {"title": "Late-evening completion keeps its calendar date", "category": "Edge", "deps": ["V-11"]}, {"title": "Non-OLT course is not sent", "category": "Edge", "deps": []}, {"title": "Learner with no matching LMS student", "category": "Edge", "deps": []}, {"title": "Duplicate completion is idempotent", "category": "Edge", "deps": []}, {"title": "Retake on a later date", "category": "Edge", "deps": []}, {"title": "Course not in LMS catalog", "category": "Edge", "deps": []}, {"title": "Peak-volume batch completes", "category": "Core", "deps": ["V-12"]}]}, "after": {"checks": [{"id": "V-01", "category": "Scope", "requirement": "Integration type: lms_completions", "as_built": "Workflow tagged: lms_completions", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-02", "category": "Identity", "requirement": "Records match on learner.external_id → STUDENT_ID", "as_built": "Match on STUDENT_ID; STUDENT_ID ← learner.external_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-03", "category": "Field mapping", "requirement": "STUDENT_ID ← learner.external_id", "as_built": "STUDENT_ID ← learner.external_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-04", "category": "Field mapping", "requirement": "ITEM_ID ← course.external_course_id", "as_built": "ITEM_ID ← course.external_course_id", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-05", "category": "Field mapping", "requirement": "ITEM_TYPE ← course.course_type", "as_built": "ITEM_TYPE ← course.course_type", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-06", "category": "Field mapping", "requirement": "COMPLETION_DATE ← completed_at", "as_built": "COMPLETION_DATE ← completed_at", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-07", "category": "Field mapping", "requirement": "COMPLETION_STATUS ← status", "as_built": "COMPLETION_STATUS ← status", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-08", "category": "Field mapping", "requirement": "SCORE ← score", "as_built": "SCORE ← score", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-09", "category": "Population filter", "requirement": "course_type in OLT", "as_built": "course_type in OLT", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-10", "category": "Schedule", "requirement": "Runs daily", "as_built": "Runs daily", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-11", "category": "Dates & time zones", "requirement": "COMPLETION_DATE converted in America/Chicago", "as_built": "Converted in America/Chicago", "result": "PASS", "severity": "—", "action": "—"}, {"id": "V-12", "category": "Error handling", "requirement": "Retry on HTTP 429, 500, 503", "as_built": "Retries on 429, 500, 502, 503", "result": "PASS", "severity": "—", "action": "—"}], "cases": [{"title": "Completion posts to learning history", "category": "Core", "deps": []}, {"title": "All mapped fields land correctly", "category": "Core", "deps": []}, {"title": "Late-evening completion keeps its calendar date", "category": "Edge", "deps": []}, {"title": "Non-OLT course is not sent", "category": "Edge", "deps": []}, {"title": "Learner with no matching LMS student", "category": "Edge", "deps": []}, {"title": "Duplicate completion is idempotent", "category": "Edge", "deps": []}, {"title": "Retake on a later date", "category": "Edge", "deps": []}, {"title": "Course not in LMS catalog", "category": "Edge", "deps": []}, {"title": "Peak-volume batch completes", "category": "Core", "deps": []}]}}};
+const SHOTS = {"overview": "img/overview-not-ready.png", "validation": "img/pre-uat-validation.png", "mappings": "img/field-mappings.png", "tests": "img/test-cases.png", "signoff": "img/sign-off.png"};
+const IMPACT = {
+  user_sync: {
+    "V-07": "Rehired workers keep their original hire date (2017 for Lucia Ferreira), so they never get new-hire onboarding.",
+    "V-12": "No learner has a manager attached. Manager nudges and team reports go nowhere.",
+    "V-15": "Seasonal loaders get accounts and training assignments on the first load, and someone has to clean them up by hand.",
+    "V-16": "Fine during UAT. It must go back to daily before production cutover.",
+    "V-14": "Cost center isn't in the signed spec. The customer decides whether it should sync."
+  },
+  completions: {
+    "V-11": "A course finished at 11:41 PM Central lands on the next day in SuccessFactors, which can push a compliance completion past its due date.",
+    "V-12": "At a compliance deadline thousands of completions post at once. Without a retry on the rate-limit response, some are dropped without an error."
+  }
+};
+const LABEL = { PASS: "✓ PASS", FAIL: "✗ FAIL", WARN: "⚠ WARN", INFO: "ℹ INFO" };
+const NAMES = { user_sync: "User sync", completions: "Completions" };
+let cur = { int: "user_sync", st: "before", all: false };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = id => document.getElementById(id);
+
+function press(groupSel, btn) {
+  document.querySelectorAll(groupSel + " button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+}
+
+function renderChecks() {
+  const d = DATA[cur.int][cur.st];
+  const counts = { FAIL: 0, WARN: 0, INFO: 0, PASS: 0 };
+  d.checks.forEach(c => counts[c.result]++);
+  $("counts").innerHTML = Object.entries(counts).filter(([, n]) => n).map(([k, n]) => `<span class="pill ${k}">${LABEL[k]} ${n}</span>`).join("");
+  const problems = d.checks.filter(c => c.result !== "PASS");
+  const shown = cur.all ? d.checks : problems;
+  let html = "";
+  if (!problems.length) html += `<div class="empty-ok">✓ Every signed requirement matches the build. Ready for customer UAT.</div>`;
+  html += shown.map(c => {
+    const imp = c.result !== "PASS" && IMPACT[cur.int][c.id];
+    return `<div class="check ${c.result}">
+      <div><div class="id">${esc(c.id)}</div><span class="pill ${c.result}" style="margin-top:6px">${LABEL[c.result]}</span></div>
+      <div class="side"><div class="lbl">${esc(c.category)}</div>${c.severity !== "—" ? `<div class="cat">${esc(c.severity)} severity</div>` : ""}</div>
+      <div class="side"><div class="lbl">Signed requirement</div><div class="val">${esc(c.requirement)}</div></div>
+      <div class="side"><div class="lbl">As built</div><div class="val">${esc(c.as_built)}</div></div>
+      ${imp ? `<div class="impact"><b>For the customer:</b> ${esc(imp)}</div>` : ""}
+      ${c.result !== "PASS" && c.action !== "—" ? `<div class="fix">Fix: ${esc(c.action)}</div>` : ""}
+    </div>`;
+  }).join("");
+  $("checks").innerHTML = html;
+  $("more").textContent = cur.all ? "Show problems only" : `Show all ${d.checks.length} checks`;
+  renderCases();
+}
+
+function renderCases() {
+  const d = DATA[cur.int][cur.st];
+  const core = d.cases.filter(c => c.category === "Core").length;
+  const dep = d.cases.filter(c => c.deps.length).length;
+  $("cases-title").textContent = `${NAMES[cur.int]} · ${d.cases.length} test cases · ${cur.st === "before" ? "as built" : "after fixes"}`;
+  $("cases-counts").innerHTML = `<span class="pill INFO">${core} core · ${d.cases.length - core} edge</span>` +
+    (dep ? `<span class="pill WARN">⚠ ${dep} depend on a fix</span>` : `<span class="pill PASS">✓ none blocked</span>`);
+  $("cases").innerHTML = d.cases.map((c, i) => `<div class="case">
+      <span class="tc">TC-${String(i + 1).padStart(2, "0")}</span>
+      <span class="t">${esc(c.title)}${c.category === "Core" ? '<span class="chip core">Core</span>' : ""}</span>
+      ${c.deps.length ? `<span class="dep">⚠ needs ${esc(c.deps.join(", "))}</span>` : "<span></span>"}
+    </div>`).join("");
+}
+
+document.querySelectorAll("#seg-int button").forEach(b => b.addEventListener("click", () => { cur.int = b.dataset.int; cur.all = false; press("#seg-int", b); renderChecks(); }));
+document.querySelectorAll("#seg-state button").forEach(b => b.addEventListener("click", () => { cur.st = b.dataset.st; press("#seg-state", b); renderChecks(); }));
+$("more").addEventListener("click", () => { cur.all = !cur.all; renderChecks(); });
+
+// Hero replica states (values match the sample workbooks in the repo)
+const STATES = {
+  before:  { cls: "crit",  text: "✗ NOT READY FOR CUSTOMER UAT · 3 blocking checks", block: 3, pass: 0, f: 0, b: 0, iss: 0, run: 0 },
+  after:   { cls: "ready", text: "▶ READY FOR CUSTOMER UAT · 16 of 16 test cases to run", block: 0, pass: 0, f: 0, b: 0, iss: 0, run: 0 },
+  testing: { cls: "ready", text: "▶ READY FOR CUSTOMER UAT · 5 of 16 test cases to run", block: 0, pass: 9, f: 1, b: 1, iss: 1, run: 11 },
+  signed:  { cls: "good",  text: "✓ READY FOR SIGN-OFF · every criterion met", block: 0, pass: 16, f: 0, b: 0, iss: 0, run: 16 }
+};
+function setState(k) {
+  const s = STATES[k];
+  const banner = $("rep-banner");
+  banner.className = "rep-banner " + s.cls; banner.textContent = s.text;
+  $("t-block").textContent = s.block; $("t-block").className = s.block ? "bad" : "ok";
+  $("t-pass").textContent = s.pass; $("t-pass-cap").textContent = `${s.f} failed · ${s.b} blocked`;
+  $("t-iss").textContent = s.iss;
+  const pct = Math.round(s.run / 16 * 100);
+  $("rep-fill").style.width = pct + "%"; $("rep-pct").textContent = pct + "% run";
+  $("rep-legend").textContent = `✓ ${s.pass} passed · ✗ ${s.f} failed · ⚠ ${s.b} blocked · ○ ${16 - s.run} not run`;
+}
+document.querySelectorAll(".states button").forEach(b => b.addEventListener("click", () => { press(".states", b); setState(b.dataset.state); }));
+
+// Workbook tabs
+const TABS = [
+  { n: "Overview", d: "A dashboard for the project lead: readiness banner, four KPI tiles, test progress and the workflow details.", li: ["Banner moves from Not ready → Ready for UAT → Ready for sign-off on its own", "Signers pulled from the spec"], img: "overview" },
+  { n: "Pre-UAT Validation", d: "Requirement against build, one row per check. Problems sort first, with severity and a recommended fix.", li: ["✓ PASS · ✗ FAIL · ⚠ WARN · ℹ INFO", "Resolution column for the integration team"], img: "validation" },
+  { n: "Field Mappings", d: "Every field written to the target, with the agreed source beside the built source, transforms and a sample value.", li: ["Flags carry the check ID that found the problem", "Customer marks each row ✓ Verified"], img: "mappings" },
+  { n: "Test Cases", d: "Core and edge cases with persona, numbered steps and one observable expected result.", li: ["Status dropdown: Not run, Pass, Fail, Blocked", "Pre-UAT dependency column names the check a case is waiting on"], img: "tests" },
+  { n: "Test Data", d: "Thirteen fictional personas: a new hire, a rehire, someone on leave, a duplicate email, a surname with diacritics.", li: ["Every test case points at one", "TEST tenant only, never production records"] },
+  { n: "Issue Log", d: "Pre-formatted with a greyed-out example row, severity and status dropdowns.", li: ["Open High issues block sign-off", "Issue ID links back to the test case"] },
+  { n: "Sign-off", d: "Five criteria, each a formula. Approver rows come from the people who signed the spec.", li: ["No failing checks · all Core passed · Edge run, nothing blocked", "No open High issues · every mapping verified"], img: "signoff" },
+  { n: "AI Instructions", d: "Rules for an agent maintaining the workbook between runs: what's the source of truth, how to carry results over on a re-run, what tone to use.", li: ["Results carried over by scenario, not row number", "WARN and INFO need a customer decision, never a silent fix"] }
+];
+function renderTab(i) {
+  document.querySelectorAll("#sheet-tabs button").forEach((b, j) => { b.setAttribute("aria-selected", String(i === j)); b.tabIndex = i === j ? 0 : -1; });
+  const t = TABS[i];
+  const img = t.img && SHOTS[t.img];
+  $("sheet-body").innerHTML = `<div><h3>${esc(t.n)}</h3><p>${esc(t.d)}</p><ul>${t.li.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
+    <div>${img ? `<div class="shot"><img src="${img}" alt="${esc(t.n)} tab from the Halvorsen Freight sample workbook" loading="lazy"></div>` : ""}</div>`;
+}
+$("sheet-tabs").innerHTML = TABS.map((t, i) => `<button type="button" role="tab" id="tab-${i}">${esc(t.n)}</button>`).join("");
+document.querySelectorAll("#sheet-tabs button").forEach((b, i) => {
+  b.addEventListener("click", () => renderTab(i));
+  b.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const n = (i + (e.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+      renderTab(n); document.getElementById("tab-" + n).focus();
+    }
+  });
+});
+
+// Highlight the sheet-tab nav for the section in view
+const navLinks = [...document.querySelectorAll(".tabs a")];
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) navLinks.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
+}), { rootMargin: "-45% 0px -50% 0px" });
+document.querySelectorAll("#overview, section.block").forEach(s => io.observe(s));
+
+renderChecks();
+renderTab(0);
+setState("before");
+</script>
+
+</body>
+</html>

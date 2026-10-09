@@ -1,0 +1,38 @@
+{
+  "spec_format": "integration-requirements/v1",
+  "_note": "Fictional demo data. The signed configuration spec agreed with the customer during discovery.",
+  "customer": "Halvorsen Freight",
+  "integration_type": "hris_user_sync",
+  "source_system": "Workday",
+  "target_system": "Learning Platform",
+  "signed_off": [
+    { "name": "Dana Whitfield", "role": "HRIS Manager, Halvorsen Freight", "date": "2026-09-28" },
+    { "name": "Marcus Oyelaran", "role": "IT Integration Lead, Halvorsen Freight", "date": "2026-09-29" }
+  ],
+  "schedule": "daily",
+  "timezone": "America/Chicago",
+  "unique_key": { "source": "Employee_ID", "target": "external_id" },
+  "required_mappings": [
+    { "source": "Employee_ID", "target": "external_id" },
+    { "source": "Work_Email", "target": "email" },
+    { "source": "Preferred_First_Name", "target": "first_name" },
+    { "source": "Last_Name", "target": "last_name" },
+    { "source": "Hire_Date", "target": "hire_date", "note": "Most recent hire date so rehires get onboarding content" },
+    { "source": "Worker_Status", "target": "status" },
+    { "source": "Department", "target": "department" },
+    { "source": "Job_Title", "target": "job_title" },
+    { "source": "Work_Location", "target": "location" },
+    { "source": "Manager_Email", "target": "manager_email", "note": "Drives manager nudges and team reporting" },
+    { "source": "Employee_Class", "target": "employee_class" }
+  ],
+  "filters": [
+    { "field": "Employee_Class", "operator": "not_in", "value": ["CONTRACTOR", "INTERN", "SEASONAL"] }
+  ],
+  "lifecycle": {
+    "Active": "active",
+    "On Leave": "active",
+    "Terminated": "inactive",
+    "missing_from_feed": "deactivate"
+  },
+  "error_handling": { "retry_on_status": [429, 500, 503] }
+}

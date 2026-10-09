@@ -1,0 +1,60 @@
+{
+  "export_format": "tray-workflow-mock/v1",
+  "_note": "Fictional demo data. Structure is a simplified stand-in for a Tray.ai workflow export.",
+  "workflow": {
+    "id": "wf_8b21de04-hf-completions",
+    "title": "Halvorsen Freight | Learning Platform -> SuccessFactors LMS | Completions",
+    "customer": "Halvorsen Freight",
+    "tags": ["lms_completions", "env:uat"],
+    "trigger": {
+      "type": "scheduled",
+      "schedule": { "interval": "daily", "at": "02:00" }
+    },
+    "steps": [
+      {
+        "name": "lp-1",
+        "connector": "learning-platform-api",
+        "operation": "list_completions",
+        "properties": { "since": "{$.env.last_successful_run}", "auth": "{$.auth.learning_platform}" }
+      },
+      { "name": "loop-1", "connector": "loop", "operation": "loop_array", "properties": { "array": "{$.steps.lp-1.completions}" } },
+      {
+        "name": "boolean-1",
+        "connector": "boolean-condition",
+        "operation": "filter",
+        "properties": {
+          "conditions": [
+            { "field": "course_type", "operator": "in", "value": ["OLT"] }
+          ]
+        }
+      },
+      {
+        "name": "data-mapper-1",
+        "connector": "data-mapper",
+        "operation": "map",
+        "properties": {
+          "mappings": [
+            { "source": "learner.external_id", "target": "STUDENT_ID" },
+            { "source": "course.external_course_id", "target": "ITEM_ID" },
+            { "source": "course.course_type", "target": "ITEM_TYPE", "transform": "constant:OLT" },
+            { "source": "completed_at", "target": "COMPLETION_DATE", "transform": "datetime:epoch_ms", "timezone": "UTC" },
+            { "source": "status", "target": "COMPLETION_STATUS", "transform": "value_map", "value_map": { "completed": "OLT-COMPLETE" } },
+            { "source": "score", "target": "SCORE" }
+          ]
+        }
+      },
+      {
+        "name": "sf-lms-1",
+        "connector": "successfactors-lms",
+        "operation": "post_learning_history",
+        "properties": { "dedupe_on": ["STUDENT_ID", "ITEM_ID", "COMPLETION_DATE"] }
+      },
+      {
+        "name": "error-handler-1",
+        "connector": "error-handler",
+        "operation": "on_error",
+        "properties": { "retry_on_status": [500, 502, 503], "max_retries": 3, "log_to": "integration_error_log" }
+      }
+    ]
+  }
+}

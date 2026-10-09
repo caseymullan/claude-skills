@@ -1,0 +1,74 @@
+{
+  "export_format": "tray-workflow-mock/v1",
+  "_note": "Fictional demo data. Structure is a simplified stand-in for a Tray.ai workflow export.",
+  "workflow": {
+    "id": "wf_3f9c1a72-hf-users",
+    "title": "Halvorsen Freight | Workday -> Learning Platform | User Sync",
+    "customer": "Halvorsen Freight",
+    "tags": ["hris_user_sync", "env:uat"],
+    "trigger": {
+      "type": "scheduled",
+      "schedule": { "interval": "15m" }
+    },
+    "steps": [
+      {
+        "name": "workday-1",
+        "connector": "workday",
+        "operation": "get_custom_report",
+        "properties": {
+          "report": "INT_LP_Worker_Feed",
+          "include_terminated_days": 30,
+          "auth": "{$.auth.workday_isu}"
+        }
+      },
+      { "name": "loop-1", "connector": "loop", "operation": "loop_array", "properties": { "array": "{$.steps.workday-1.Report_Entry}" } },
+      {
+        "name": "boolean-1",
+        "connector": "boolean-condition",
+        "operation": "filter",
+        "properties": {
+          "conditions": [
+            { "field": "Employee_Class", "operator": "not_in", "value": ["CONTRACTOR", "INTERN"] }
+          ]
+        }
+      },
+      {
+        "name": "data-mapper-1",
+        "connector": "data-mapper",
+        "operation": "map",
+        "properties": {
+          "mappings": [
+            { "source": "Employee_ID", "target": "external_id" },
+            { "source": "Work_Email", "target": "email", "transform": "lowercase" },
+            { "source": "Preferred_First_Name", "target": "first_name" },
+            { "source": "Last_Name", "target": "last_name" },
+            { "source": "Original_Hire_Date", "target": "hire_date", "transform": "date:YYYY-MM-DD" },
+            {
+              "source": "Worker_Status",
+              "target": "status",
+              "transform": "value_map",
+              "value_map": { "Active": "active", "On Leave": "active", "Terminated": "inactive" }
+            },
+            { "source": "Department", "target": "department" },
+            { "source": "Job_Title", "target": "job_title" },
+            { "source": "Work_Location", "target": "location" },
+            { "source": "Employee_Class", "target": "employee_class" },
+            { "source": "Cost_Center", "target": "cost_center" }
+          ]
+        }
+      },
+      {
+        "name": "lp-1",
+        "connector": "learning-platform-api",
+        "operation": "upsert_user",
+        "properties": { "match_on": "external_id", "on_missing_from_feed": "deactivate" }
+      },
+      {
+        "name": "error-handler-1",
+        "connector": "error-handler",
+        "operation": "on_error",
+        "properties": { "retry_on_status": [429, 500, 503], "max_retries": 3, "log_to": "integration_error_log" }
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "spec_format": "integration-requirements/v1",
+  "_note": "Fictional demo data. The signed configuration spec agreed with the customer during discovery.",
+  "customer": "Halvorsen Freight",
+  "integration_type": "lms_completions",
+  "source_system": "Learning Platform",
+  "target_system": "SuccessFactors LMS",
+  "signed_off": [
+    { "name": "Priya Natarajan", "role": "LMS Administrator, Halvorsen Freight", "date": "2026-09-29" }
+  ],
+  "schedule": "daily",
+  "timezone": "America/Chicago",
+  "unique_key": { "source": "learner.external_id", "target": "STUDENT_ID" },
+  "required_mappings": [
+    { "source": "learner.external_id", "target": "STUDENT_ID" },
+    { "source": "course.external_course_id", "target": "ITEM_ID" },
+    { "source": "course.course_type", "target": "ITEM_TYPE" },
+    { "source": "completed_at", "target": "COMPLETION_DATE", "note": "Calendar date must match the learner's local completion date" },
+    { "source": "status", "target": "COMPLETION_STATUS" },
+    { "source": "score", "target": "SCORE" }
+  ],
+  "filters": [
+    { "field": "course_type", "operator": "in", "value": ["OLT"] }
+  ],
+  "error_handling": { "retry_on_status": [429, 500, 503] },
+  "expected_volume": { "peak_completions_per_run": 2500 }
+}
